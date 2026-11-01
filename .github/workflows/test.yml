@@ -1,0 +1,41 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m unittest discover -s tests -v
+
+  action:
+    name: action (${{ matrix.case }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {case: pass,      command: "python3 tests/fake_server.py ok",    expect: 0}
+          - {case: too-long,  command: "python3 tests/fake_server.py long",  expect: 1}
+          - {case: no-start,  command: "python3 tests/fake_server.py crash", expect: 2}
+    steps:
+      - uses: actions/checkout@v7
+      - id: pf
+        uses: ./
+        continue-on-error: true
+        with:
+          command: ${{ matrix.command }}
+          timeout: "30"
+      - name: Assert exit code
+        env:
+          EXPECT: ${{ matrix.expect }}
+          GOT: ${{ steps.pf.outputs.exit-code }}
+        run: |
+          echo "expected $EXPECT, got ${GOT:-<empty>}"
+          [ "$GOT" = "$EXPECT" ]

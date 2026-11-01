@@ -1,0 +1,31 @@
+name: MCP Preflight
+description: Fails CI when your MCP server won't start, has a tool with no description, or has a description OpenAI rejects (>1,024 chars).
+branding: {icon: check-circle, color: green}
+inputs:
+  command:        {description: "Command that starts your MCP server over stdio", required: true}
+  max-length:     {description: "Longest allowed tool description", required: false, default: "1024"}
+  timeout:        {description: "Seconds to wait for the server to answer tools/list (includes package install)", required: false, default: "180"}
+  report-only:    {description: "Write the report but never fail the job", required: false, default: "false"}
+outputs:
+  exit-code:
+    description: "0 = pass, 1 = description problems, 2 = server did not start"
+    value: ${{ steps.check.outputs.exit-code }}
+runs:
+  using: composite
+  steps:
+    - id: check
+      shell: bash
+      env:
+        CMD: ${{ inputs.command }}
+        MAX_LEN: ${{ inputs.max-length }}
+        TIMEOUT: ${{ inputs.timeout }}
+        REPORT_ONLY: ${{ inputs.report-only }}
+      run: |
+        set +e
+        python3 "$GITHUB_ACTION_PATH/check.py" --cmd "$CMD" --max-len "$MAX_LEN" --timeout "$TIMEOUT" --md mcp-preflight.md 2> /dev/null
+        rc=$?
+        set -e
+        echo "exit-code=$rc" >> "$GITHUB_OUTPUT"
+        cat mcp-preflight.md >> "$GITHUB_STEP_SUMMARY"
+        if [ "$REPORT_ONLY" = "true" ]; then exit 0; fi
+        exit $rc
